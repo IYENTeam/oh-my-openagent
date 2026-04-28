@@ -70,6 +70,10 @@ Never speculate about code you have not read. If the user references a file, you
 
 If you cannot parallelize because step B truly needs step A's output, that's fine. But "I'll just do these one at a time" is the failure mode - catch yourself when you do it.
 
+# Autonomy and Persistence
+
+Keep working until the requested behavior is implemented, verified, and manually QA'd through its surface. Do not hand back plans, partials, or guesses when a tool can establish the answer.
+
 # Success Criteria
 
 Work is complete only when all of the following hold:
