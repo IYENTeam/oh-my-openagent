@@ -11,8 +11,9 @@ import { log } from "../../shared"
 
 export { BTW_HOOK_MARKER } from "./detect"
 
-const SIDE_ANSWER_PREFIX = "Side answer (not added to main task):"
-const SIDE_FAILURE_PREFIX = "Side question failed (no main-task changes were made)."
+const SIDE_QUESTION_HEADER = "/btw side question (not added to main task):"
+const SIDE_ANSWER_HEADER = "Side answer:"
+const SIDE_FAILURE_HEADER = "Side question failed (no main-task changes were made):"
 
 type ChatMessagePart = { type: string; text?: string; [key: string]: unknown }
 
@@ -83,8 +84,8 @@ export function createBtwIsolationHook(
       })
 
       const replacement = result.ok
-        ? `${SIDE_ANSWER_PREFIX}\n${result.answer}`
-        : `${SIDE_FAILURE_PREFIX}\nReason: ${result.error}`
+        ? `${SIDE_QUESTION_HEADER}\n${detection.question}\n\n${SIDE_ANSWER_HEADER}\n${result.answer}`
+        : `${SIDE_QUESTION_HEADER}\n${detection.question}\n\n${SIDE_FAILURE_HEADER}\n${result.error}`
 
       sanitizePart(output.parts[detection.primaryPartIndex], replacement)
       for (const idx of detection.relatedPartIndexes) {
