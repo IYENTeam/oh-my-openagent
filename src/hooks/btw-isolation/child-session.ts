@@ -25,6 +25,7 @@ export interface RunIsolatedSideQuestionInput {
   parentSessionID: string
   question: string
   defaultDirectory: string
+  model?: { providerID: string; modelID: string }
   timeoutMs?: number
 }
 
@@ -56,6 +57,7 @@ export async function runIsolatedSideQuestion(
         agent: SIDE_QUESTION_AGENT,
         system: SIDE_QUESTION_SYSTEM_PROMPT,
         parts: [createInternalAgentTextPart(input.question)],
+        ...(input.model ? { model: input.model } : {}),
       },
     } as Parameters<typeof input.client.session.prompt>[0])
 

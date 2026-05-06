@@ -2,6 +2,7 @@ import type { PluginInput } from "@opencode-ai/plugin"
 import { detectBtwInvocation } from "./detect"
 import { runIsolatedSideQuestion, type RunIsolatedSideQuestionInput, type RunIsolatedSideQuestionResult } from "./child-session"
 import { subagentSessions } from "../../features/claude-code-session-state"
+import { getSessionModel } from "../../shared/session-model-state"
 import { log } from "../../shared"
 
 export { BTW_HOOK_MARKER } from "./detect"
@@ -49,9 +50,14 @@ export function createBtwIsolationHook(
         return
       }
 
+      const inheritedModel = input.model ?? getSessionModel(input.sessionID)
+
       log("[btw-isolation] /btw invocation detected, running in isolated child session", {
         sessionID: input.sessionID,
         questionLength: detection.question.length,
+        inheritedModel: inheritedModel
+          ? `${inheritedModel.providerID}/${inheritedModel.modelID}`
+          : "<none>",
       })
 
       const result = await deps.runIsolatedSideQuestion({
@@ -59,6 +65,7 @@ export function createBtwIsolationHook(
         parentSessionID: input.sessionID,
         question: detection.question,
         defaultDirectory: ctx.directory,
+        ...(inheritedModel ? { model: inheritedModel } : {}),
       })
 
       const replacement = formatParentReplacement(result)

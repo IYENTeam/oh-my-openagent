@@ -146,4 +146,28 @@ describe("createBtwIsolationHook (chat.message)", () => {
     //#then
     expect(received).toBe(inner)
   })
+
+  test("inherits the parent message model into the child session prompt", async () => {
+    //#given
+    let receivedModel: { providerID: string; modelID: string } | undefined
+    const hook = createBtwIsolationHook(makeCtx(), {
+      runIsolatedSideQuestion: async (input) => {
+        receivedModel = input.model
+        return { ok: true, answer: "ok", childSessionID: "ses_child" }
+      },
+    })
+    const output = makeOutput(BTW_PROMPT("inherits?"))
+
+    //#when
+    await hook["chat.message"](
+      {
+        sessionID: "ses_main",
+        model: { providerID: "closedrouter", modelID: "claude-opus-4-7" },
+      },
+      output,
+    )
+
+    //#then
+    expect(receivedModel).toEqual({ providerID: "closedrouter", modelID: "claude-opus-4-7" })
+  })
 })
