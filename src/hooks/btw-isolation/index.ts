@@ -55,6 +55,9 @@ export function createBtwIsolationHook(
       log("[btw-isolation] /btw invocation detected, running in isolated child session", {
         sessionID: input.sessionID,
         questionLength: detection.question.length,
+        primaryPartIndex: detection.primaryPartIndex,
+        relatedPartCount: detection.relatedPartIndexes.length,
+        totalParts: output.parts.length,
         inheritedModel: inheritedModel
           ? `${inheritedModel.providerID}/${inheritedModel.modelID}`
           : "<none>",
@@ -69,7 +72,10 @@ export function createBtwIsolationHook(
       })
 
       const replacement = formatParentReplacement(result)
-      replaceParentText(output, detection.textPartIndex, replacement)
+      writeReplacementToPart(output, detection.primaryPartIndex, replacement)
+      for (const idx of detection.relatedPartIndexes) {
+        writeReplacementToPart(output, idx, "")
+      }
     },
   }
 }
@@ -84,7 +90,7 @@ function formatParentReplacement(result: RunIsolatedSideQuestionResult): string 
   ].join("\n")
 }
 
-function replaceParentText(
+function writeReplacementToPart(
   output: ChatMessageOutput,
   textPartIndex: number,
   replacement: string,

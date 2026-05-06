@@ -19,20 +19,35 @@ describe("detectBtwInvocation", () => {
     //#then
     expect(result.matched).toBe(true)
     if (result.matched) {
-      expect(result.textPartIndex).toBe(0)
+      expect(result.primaryPartIndex).toBe(0)
       expect(result.question).toBe("what is 2+2?")
+      expect(result.relatedPartIndexes).toEqual([])
     }
   })
 
-  test("returns matched=false when marker missing", () => {
+  test("returns matched=false when no marker, command-instruction, or side-question present", () => {
     //#given
-    const parts = [{ type: "text", text: "<side-question>q</side-question>" }]
+    const parts = [{ type: "text", text: "no marker, no instruction, no question" }]
 
     //#when
     const result = detectBtwInvocation(parts)
 
     //#then
     expect(result.matched).toBe(false)
+  })
+
+  test("recovers when marker is missing but side-question tag is present (auto-slash-command edge case)", () => {
+    //#given - some auto-slash-command paths inject the question into a separate part without the marker
+    const parts = [{ type: "text", text: "<side-question>standalone Q</side-question>" }]
+
+    //#when
+    const result = detectBtwInvocation(parts)
+
+    //#then
+    expect(result.matched).toBe(true)
+    if (result.matched) {
+      expect(result.question).toBe("standalone Q")
+    }
   })
 
   test("returns matched=false when side-question tag missing", () => {
@@ -84,8 +99,27 @@ describe("detectBtwInvocation", () => {
     //#then
     expect(result.matched).toBe(true)
     if (result.matched) {
-      expect(result.textPartIndex).toBe(1)
+      expect(result.primaryPartIndex).toBe(1)
       expect(result.question).toBe("real Q")
+    }
+  })
+
+  test("collects related parts (command-instruction or side-question without the marker) for sanitization", () => {
+    //#given - OpenCode may split the slash command expansion across multiple parts
+    const parts = [
+      { type: "text", text: `${BTW_HOOK_MARKER}\n<command-instruction>template body</command-instruction>` },
+      { type: "text", text: "<side-question>actual Q</side-question>" },
+    ]
+
+    //#when
+    const result = detectBtwInvocation(parts)
+
+    //#then
+    expect(result.matched).toBe(true)
+    if (result.matched) {
+      expect(result.primaryPartIndex).toBe(0)
+      expect(result.question).toBe("actual Q")
+      expect(result.relatedPartIndexes).toEqual([1])
     }
   })
 

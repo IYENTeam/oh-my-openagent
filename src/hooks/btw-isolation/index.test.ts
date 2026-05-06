@@ -194,4 +194,32 @@ describe("createBtwIsolationHook (chat.message)", () => {
     //#then
     expect(receivedModel).toEqual({ providerID: "closedrouter", modelID: "claude-opus-4-7" })
   })
+
+  test("sanitizes every related part when slash command expansion is split across multiple parts", async () => {
+    //#given - OpenCode auto-slash-command may emit BTW_HOOK_MARKER + template body in one part and the question in another
+    const hook = createBtwIsolationHook(makeCtx(), {
+      runIsolatedSideQuestion: async () => ({ ok: true, answer: "42", childSessionID: "ses_child" }),
+    })
+    const output: Output = {
+      message: {},
+      parts: [
+        { type: "text", text: `${BTW_HOOK_MARKER}\n<command-instruction>full template body</command-instruction>` },
+        { type: "text", text: "<side-question>real Q</side-question>" },
+      ],
+    }
+
+    //#when
+    await hook["chat.message"]({ sessionID: "ses_main" }, output)
+
+    //#then
+    const primary = output.parts[0].text ?? ""
+    const related = output.parts[1].text ?? ""
+    expect(primary).toContain("Side answer (not added to main task):")
+    expect(primary).toContain("42")
+    expect(primary).not.toContain(BTW_HOOK_MARKER)
+    expect(primary).not.toContain("<command-instruction>")
+    expect(related).toBe("")
+    expect(related).not.toContain("<side-question>")
+    expect(related).not.toContain("real Q")
+  })
 })
