@@ -96,5 +96,8 @@ function replaceParentText(
   textPartIndex: number,
   replacement: string,
 ): void {
-  output.parts[textPartIndex] = { type: "text", text: replacement }
+  const part = output.parts[textPartIndex]
+  if (!part) return
+  part.type = "text"
+  part.text = replacement
 }

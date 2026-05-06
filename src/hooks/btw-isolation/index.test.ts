@@ -147,6 +147,32 @@ describe("createBtwIsolationHook (chat.message)", () => {
     expect(received).toBe(inner)
   })
 
+  test("preserves opaque part metadata fields (id, sessionID, messageID) when rewriting", async () => {
+    //#given - the part already carries OpenCode-internal metadata that must survive rewrite
+    const hook = createBtwIsolationHook(makeCtx(), {
+      runIsolatedSideQuestion: async () => ({ ok: true, answer: "ok", childSessionID: "ses_child" }),
+    })
+    const richPart: Record<string, unknown> = {
+      type: "text",
+      text: BTW_PROMPT("does metadata survive?"),
+      id: "prt_123",
+      sessionID: "ses_main",
+      messageID: "msg_abc",
+    }
+    const output: Output = { message: {}, parts: [richPart as never] }
+
+    //#when
+    await hook["chat.message"]({ sessionID: "ses_main" }, output)
+
+    //#then
+    const after = output.parts[0] as Record<string, unknown>
+    expect(after.id).toBe("prt_123")
+    expect(after.sessionID).toBe("ses_main")
+    expect(after.messageID).toBe("msg_abc")
+    expect(after.type).toBe("text")
+    expect(after.text).toContain("Side answer (not added to main task):")
+  })
+
   test("inherits the parent message model into the child session prompt", async () => {
     //#given
     let receivedModel: { providerID: string; modelID: string } | undefined
