@@ -3,6 +3,7 @@ import type { PluginContext } from "../types"
 import type { RalphLoopHook } from "../../hooks/ralph-loop"
 
 import {
+  createBtwIsolationHook,
   createClaudeCodeHooksHook,
   createKeywordDetectorHook,
   createThinkingBlockValidatorHook,
@@ -17,6 +18,7 @@ import { safeCreateHook } from "../../shared/safe-create-hook"
 export type TransformHooks = {
   claudeCodeHooks: ReturnType<typeof createClaudeCodeHooksHook> | null
   keywordDetector: ReturnType<typeof createKeywordDetectorHook> | null
+  btwIsolation: ReturnType<typeof createBtwIsolationHook> | null
   contextInjectorMessagesTransform: ReturnType<typeof createContextInjectorMessagesTransformHook>
   thinkingBlockValidator: ReturnType<typeof createThinkingBlockValidatorHook> | null
   toolPairValidator: ReturnType<typeof createToolPairValidatorHook> | null
@@ -56,6 +58,14 @@ export function createTransformHooks(args: {
       )
     : null
 
+  const btwIsolation = isHookEnabled("btw-isolation")
+    ? safeCreateHook(
+        "btw-isolation",
+        () => createBtwIsolationHook(ctx),
+        { enabled: safeHookEnabled },
+      )
+    : null
+
   const contextInjectorMessagesTransform =
     createContextInjectorMessagesTransformHook(contextCollector)
 
@@ -78,6 +88,7 @@ export function createTransformHooks(args: {
   return {
     claudeCodeHooks,
     keywordDetector,
+    btwIsolation,
     contextInjectorMessagesTransform,
     thinkingBlockValidator,
     toolPairValidator,

@@ -15,10 +15,11 @@ describe("BTW_TEMPLATE", () => {
   test("should forbid mutating the main todo list and task flow", () => {
     //#given - the template string
 
-    //#when / #then
-    expect(BTW_TEMPLATE).toContain("MUST NOT be added to the active todo list")
-    expect(BTW_TEMPLATE).toContain("Do NOT add it to the existing todo list")
-    expect(BTW_TEMPLATE).toContain("DO NOT modify files, branches, or commits because of /btw")
+    //#when / #then - prose may wrap onto multiple lines, so collapse whitespace before matching
+    const collapsed = BTW_TEMPLATE.replace(/\s+/g, " ")
+    expect(collapsed).toContain("MUST NOT be added to the active todo list")
+    expect(collapsed).toContain("Do NOT add it to the existing todo list")
+    expect(collapsed).toContain("DO NOT modify files, branches, or commits because of /btw")
   })
 
   test("should provide a usage hint for empty invocation", () => {
@@ -28,13 +29,21 @@ describe("BTW_TEMPLATE", () => {
     expect(BTW_TEMPLATE).toContain("Usage: /btw <question>")
   })
 
-  test("should instruct delegation to a fresh subagent session via task tool", () => {
+  test("should instruct fallback delegation to a fresh subagent session via task tool", () => {
+    //#given - the template string
+
+    //#when / #then - prose wraps onto multiple lines, so collapse whitespace before matching
+    const collapsed = BTW_TEMPLATE.replace(/\s+/g, " ")
+    expect(collapsed).toContain("ANSWER IN AN ISOLATED CONTEXT")
+    expect(collapsed).toContain("task tool")
+    expect(collapsed).toContain("run_in_background: false")
+  })
+
+  test("should embed the btw-isolation hook marker for plugin-side detection", () => {
     //#given - the template string
 
     //#when / #then
-    expect(BTW_TEMPLATE).toContain("DELEGATE TO A SEPARATE SESSION")
-    expect(BTW_TEMPLATE).toContain("task tool")
-    expect(BTW_TEMPLATE).toContain("run_in_background: false")
+    expect(BTW_TEMPLATE).toContain("<!-- omo:btw-isolation v1 -->")
   })
 
   test("should recommend lightweight categories by default", () => {
