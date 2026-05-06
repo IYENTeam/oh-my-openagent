@@ -11,7 +11,7 @@ import { log } from "../../shared"
 
 export { BTW_HOOK_MARKER } from "./detect"
 
-const SIDE_QUESTION_HEADER = "/btw side question (not added to main task):"
+const SIDE_QUESTION_HEADER = "Side question (not added to main task):"
 const SIDE_ANSWER_HEADER = "Side answer:"
 const SIDE_FAILURE_HEADER = "Side question failed (no main-task changes were made):"
 

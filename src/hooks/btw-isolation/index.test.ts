@@ -66,7 +66,7 @@ describe("createBtwIsolationHook (chat.message)", () => {
     expect(received?.parentSessionID).toBe("ses_main")
     expect(received?.question).toBe("what is 2+2?")
     expect(output.parts[0].text).toBe(
-      "/btw side question (not added to main task):\nwhat is 2+2?\n\nSide answer:\n4",
+      "Side question (not added to main task):\nwhat is 2+2?\n\nSide answer:\n4",
     )
     expect(output.noReply).toBe(true)
   })
@@ -83,7 +83,7 @@ describe("createBtwIsolationHook (chat.message)", () => {
 
     //#then
     expect(output.parts[0].text).toBe(
-      "/btw side question (not added to main task):\ndoomed question\n\nSide question failed (no main-task changes were made):\nsession timeout",
+      "Side question (not added to main task):\ndoomed question\n\nSide question failed (no main-task changes were made):\nsession timeout",
     )
     expect(output.noReply).toBe(true)
   })
@@ -177,7 +177,7 @@ describe("createBtwIsolationHook (chat.message)", () => {
     expect(output.parts[0].sessionID).toBe("ses_main")
     expect(output.parts[0].messageID).toBe("msg_xyz")
     expect(output.parts[0].text).toBe(
-      "/btw side question (not added to main task):\nmetadata?\n\nSide answer:\nok",
+      "Side question (not added to main task):\nmetadata?\n\nSide answer:\nok",
     )
     expect(output.noReply).toBe(true)
   })
@@ -203,7 +203,7 @@ describe("createBtwIsolationHook (chat.message)", () => {
 
     //#then
     expect(output.parts[0].text).toBe(
-      "/btw side question (not added to main task):\nreal Q\n\nSide answer:\n42",
+      "Side question (not added to main task):\nreal Q\n\nSide answer:\n42",
     )
     expect(output.parts[1].text).toBe("")
     expect(output.noReply).toBe(true)
