@@ -1,11 +1,18 @@
 import type { PluginInput } from "@opencode-ai/plugin"
 import { detectBtwInvocation } from "./detect"
-import { runIsolatedSideQuestion, type RunIsolatedSideQuestionInput, type RunIsolatedSideQuestionResult } from "./child-session"
+import {
+  runIsolatedSideQuestion,
+  type RunIsolatedSideQuestionInput,
+  type RunIsolatedSideQuestionResult,
+} from "./child-session"
 import { subagentSessions } from "../../features/claude-code-session-state"
 import { getSessionModel } from "../../shared/session-model-state"
 import { log } from "../../shared"
 
 export { BTW_HOOK_MARKER } from "./detect"
+
+const SIDE_ANSWER_PREFIX = "Side answer (not added to main task):"
+const SIDE_FAILURE_PREFIX = "Side question failed (no main-task changes were made)."
 
 type ChatMessagePart = { type: string; text?: string; [key: string]: unknown }
 
@@ -20,6 +27,7 @@ type ChatMessageInput = {
 type ChatMessageOutput = {
   message: Record<string, unknown>
   parts: ChatMessagePart[]
+  noReply?: boolean
 }
 
 export interface BtwIsolationDeps {
@@ -41,6 +49,9 @@ export function createBtwIsolationHook(
       input: ChatMessageInput,
       output: ChatMessageOutput,
     ): Promise<void> => {
+      // #given: a child session triggered by this very hook
+      // #when: the hook fires for that child session
+      // #then: bail out so the side-question itself does not recurse
       if (subagentSessions.has(input.sessionID)) {
         return
       }
@@ -71,32 +82,30 @@ export function createBtwIsolationHook(
         ...(inheritedModel ? { model: inheritedModel } : {}),
       })
 
-      const replacement = formatParentReplacement(result)
-      writeReplacementToPart(output, detection.primaryPartIndex, replacement)
+      const replacement = result.ok
+        ? `${SIDE_ANSWER_PREFIX}\n${result.answer}`
+        : `${SIDE_FAILURE_PREFIX}\nReason: ${result.error}`
+
+      sanitizePart(output.parts[detection.primaryPartIndex], replacement)
       for (const idx of detection.relatedPartIndexes) {
-        writeReplacementToPart(output, idx, "")
+        sanitizePart(output.parts[idx], "")
       }
+
+      // #given: an OpenCode build that honors `chat.message` output.noReply
+      // #when: this hook completes after rewriting the parent message
+      // #then: the assistant turn is skipped on the parent so no extra reply is generated
+      output.noReply = true
+
+      log("[btw-isolation] parent message rewritten with side answer; requested noReply", {
+        sessionID: input.sessionID,
+        ok: result.ok,
+      })
     },
   }
 }
 
-function formatParentReplacement(result: RunIsolatedSideQuestionResult): string {
-  if (result.ok) {
-    return ["Side answer (not added to main task):", result.answer].join("\n")
-  }
-  return [
-    "Side question failed (no main-task changes were made).",
-    `Reason: ${result.error}`,
-  ].join("\n")
-}
-
-function writeReplacementToPart(
-  output: ChatMessageOutput,
-  textPartIndex: number,
-  replacement: string,
-): void {
-  const part = output.parts[textPartIndex]
+function sanitizePart(part: ChatMessagePart | undefined, text: string): void {
   if (!part) return
   part.type = "text"
-  part.text = replacement
+  part.text = text
 }

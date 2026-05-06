@@ -7,11 +7,12 @@ import { _resetForTesting, subagentSessions } from "../../features/claude-code-s
 
 type Output = {
   message: Record<string, unknown>
-  parts: Array<{ type: string; text?: string }>
+  parts: Array<{ type: string; text?: string; id?: string; sessionID?: string; messageID?: string }>
+  noReply?: boolean
 }
 
 function makeCtx(): PluginInput {
-  return { client: {} as never, directory: "/tmp/btw-test", $: () => ({}) } as unknown as PluginInput
+  return { client: {}, directory: "/tmp/btw-test" } as unknown as PluginInput
 }
 
 function makeOutput(text: string): Output {
@@ -44,15 +45,16 @@ describe("createBtwIsolationHook (chat.message)", () => {
 
     //#then
     expect(output.parts[0].text).toBe("Plain user message, no btw")
+    expect(output.noReply).toBeUndefined()
   })
 
-  test("delegates to runIsolatedSideQuestion when /btw invocation detected", async () => {
+  test("rewrites the parent message with the side answer and sets noReply on success", async () => {
     //#given
     let received: { parentSessionID: string; question: string } | undefined
     const hook = createBtwIsolationHook(makeCtx(), {
       runIsolatedSideQuestion: async (input) => {
         received = { parentSessionID: input.parentSessionID, question: input.question }
-        return { ok: true, answer: "child answer", childSessionID: "ses_child" }
+        return { ok: true, answer: "4", childSessionID: "ses_child" }
       },
     })
     const output = makeOutput(BTW_PROMPT("what is 2+2?"))
@@ -63,37 +65,14 @@ describe("createBtwIsolationHook (chat.message)", () => {
     //#then
     expect(received?.parentSessionID).toBe("ses_main")
     expect(received?.question).toBe("what is 2+2?")
+    expect(output.parts[0].text).toBe("Side answer (not added to main task):\n4")
+    expect(output.noReply).toBe(true)
   })
 
-  test("replaces the user text part with sanitized side answer when child succeeds", async () => {
+  test("rewrites the parent message with a failure note and still sets noReply on child failure", async () => {
     //#given
     const hook = createBtwIsolationHook(makeCtx(), {
-      runIsolatedSideQuestion: async () => ({
-        ok: true,
-        answer: "4",
-        childSessionID: "ses_child",
-      }),
-    })
-    const output = makeOutput(BTW_PROMPT("what is 2+2?"))
-
-    //#when
-    await hook["chat.message"]({ sessionID: "ses_main" }, output)
-
-    //#then
-    const replaced = output.parts[0].text ?? ""
-    expect(replaced).toContain("Side answer (not added to main task):")
-    expect(replaced).toContain("4")
-    expect(replaced).not.toContain(BTW_HOOK_MARKER)
-    expect(replaced).not.toContain("what is 2+2?")
-  })
-
-  test("replaces the user text part with a sanitized failure note when child fails", async () => {
-    //#given
-    const hook = createBtwIsolationHook(makeCtx(), {
-      runIsolatedSideQuestion: async () => ({
-        ok: false,
-        error: "session timeout",
-      }),
+      runIsolatedSideQuestion: async () => ({ ok: false, error: "session timeout" }),
     })
     const output = makeOutput(BTW_PROMPT("doomed question"))
 
@@ -101,11 +80,10 @@ describe("createBtwIsolationHook (chat.message)", () => {
     await hook["chat.message"]({ sessionID: "ses_main" }, output)
 
     //#then
-    const replaced = output.parts[0].text ?? ""
-    expect(replaced).toContain("Side question failed")
-    expect(replaced).toContain("session timeout")
-    expect(replaced).not.toContain(BTW_HOOK_MARKER)
-    expect(replaced).not.toContain("doomed question")
+    expect(output.parts[0].text).toBe(
+      "Side question failed (no main-task changes were made).\nReason: session timeout",
+    )
+    expect(output.noReply).toBe(true)
   })
 
   test("skips processing when current session is a subagent (re-entrance guard)", async () => {
@@ -124,9 +102,10 @@ describe("createBtwIsolationHook (chat.message)", () => {
 
     //#then
     expect(output.parts[0].text).toBe(original)
+    expect(output.noReply).toBeUndefined()
   })
 
-  test("preserves multi-line side question content when relayed back", async () => {
+  test("preserves multi-line side question content when relayed to the child", async () => {
     //#given
     let received: string | undefined
     const hook = createBtwIsolationHook(makeCtx(), {
@@ -143,32 +122,7 @@ describe("createBtwIsolationHook (chat.message)", () => {
 
     //#then
     expect(received).toBe(inner)
-  })
-
-  test("preserves opaque part metadata fields (id, sessionID, messageID) when rewriting", async () => {
-    //#given - the part already carries OpenCode-internal metadata that must survive rewrite
-    const hook = createBtwIsolationHook(makeCtx(), {
-      runIsolatedSideQuestion: async () => ({ ok: true, answer: "ok", childSessionID: "ses_child" }),
-    })
-    const richPart: Record<string, unknown> = {
-      type: "text",
-      text: BTW_PROMPT("does metadata survive?"),
-      id: "prt_123",
-      sessionID: "ses_main",
-      messageID: "msg_abc",
-    }
-    const output: Output = { message: {}, parts: [richPart as never] }
-
-    //#when
-    await hook["chat.message"]({ sessionID: "ses_main" }, output)
-
-    //#then
-    const after = output.parts[0] as Record<string, unknown>
-    expect(after.id).toBe("prt_123")
-    expect(after.sessionID).toBe("ses_main")
-    expect(after.messageID).toBe("msg_abc")
-    expect(after.type).toBe("text")
-    expect(after.text).toContain("Side answer (not added to main task):")
+    expect(output.noReply).toBe(true)
   })
 
   test("inherits the parent message model into the child session prompt", async () => {
@@ -195,7 +149,36 @@ describe("createBtwIsolationHook (chat.message)", () => {
     expect(receivedModel).toEqual({ providerID: "closedrouter", modelID: "claude-opus-4-7" })
   })
 
-  test("sanitizes every related part when slash command expansion is split across multiple parts", async () => {
+  test("preserves opaque part metadata when rewriting the primary part", async () => {
+    //#given
+    const hook = createBtwIsolationHook(makeCtx(), {
+      runIsolatedSideQuestion: async () => ({ ok: true, answer: "ok", childSessionID: "ses_child" }),
+    })
+    const output: Output = {
+      message: {},
+      parts: [
+        {
+          type: "text",
+          text: BTW_PROMPT("metadata?"),
+          id: "prt_abc",
+          sessionID: "ses_main",
+          messageID: "msg_xyz",
+        },
+      ],
+    }
+
+    //#when
+    await hook["chat.message"]({ sessionID: "ses_main" }, output)
+
+    //#then
+    expect(output.parts[0].id).toBe("prt_abc")
+    expect(output.parts[0].sessionID).toBe("ses_main")
+    expect(output.parts[0].messageID).toBe("msg_xyz")
+    expect(output.parts[0].text).toBe("Side answer (not added to main task):\nok")
+    expect(output.noReply).toBe(true)
+  })
+
+  test("sanitizes split slash command expansions across multiple parts", async () => {
     //#given - OpenCode auto-slash-command may emit BTW_HOOK_MARKER + template body in one part and the question in another
     const hook = createBtwIsolationHook(makeCtx(), {
       runIsolatedSideQuestion: async () => ({ ok: true, answer: "42", childSessionID: "ses_child" }),
@@ -203,7 +186,10 @@ describe("createBtwIsolationHook (chat.message)", () => {
     const output: Output = {
       message: {},
       parts: [
-        { type: "text", text: `${BTW_HOOK_MARKER}\n<command-instruction>full template body</command-instruction>` },
+        {
+          type: "text",
+          text: `${BTW_HOOK_MARKER}\n<command-instruction>full template body</command-instruction>`,
+        },
         { type: "text", text: "<side-question>real Q</side-question>" },
       ],
     }
@@ -212,14 +198,8 @@ describe("createBtwIsolationHook (chat.message)", () => {
     await hook["chat.message"]({ sessionID: "ses_main" }, output)
 
     //#then
-    const primary = output.parts[0].text ?? ""
-    const related = output.parts[1].text ?? ""
-    expect(primary).toContain("Side answer (not added to main task):")
-    expect(primary).toContain("42")
-    expect(primary).not.toContain(BTW_HOOK_MARKER)
-    expect(primary).not.toContain("<command-instruction>")
-    expect(related).toBe("")
-    expect(related).not.toContain("<side-question>")
-    expect(related).not.toContain("real Q")
+    expect(output.parts[0].text).toBe("Side answer (not added to main task):\n42")
+    expect(output.parts[1].text).toBe("")
+    expect(output.noReply).toBe(true)
   })
 })
