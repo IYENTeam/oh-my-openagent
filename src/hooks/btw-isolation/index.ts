@@ -76,18 +76,11 @@ export function createBtwIsolationHook(
 
 function formatParentReplacement(result: RunIsolatedSideQuestionResult): string {
   if (result.ok) {
-    return [
-      "Side answer (not added to main task):",
-      result.answer,
-      "",
-      "Resuming main task.",
-    ].join("\n")
+    return ["Side answer (not added to main task):", result.answer].join("\n")
   }
   return [
     "Side question failed (no main-task changes were made).",
     `Reason: ${result.error}`,
-    "",
-    "Resuming main task.",
   ].join("\n")
 }
 

@@ -83,7 +83,6 @@ describe("createBtwIsolationHook (chat.message)", () => {
     const replaced = output.parts[0].text ?? ""
     expect(replaced).toContain("Side answer (not added to main task):")
     expect(replaced).toContain("4")
-    expect(replaced).toContain("Resuming main task.")
     expect(replaced).not.toContain(BTW_HOOK_MARKER)
     expect(replaced).not.toContain("what is 2+2?")
   })
@@ -105,7 +104,6 @@ describe("createBtwIsolationHook (chat.message)", () => {
     const replaced = output.parts[0].text ?? ""
     expect(replaced).toContain("Side question failed")
     expect(replaced).toContain("session timeout")
-    expect(replaced).toContain("Resuming main task.")
     expect(replaced).not.toContain(BTW_HOOK_MARKER)
     expect(replaced).not.toContain("doomed question")
   })
