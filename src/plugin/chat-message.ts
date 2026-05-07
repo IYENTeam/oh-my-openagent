@@ -233,18 +233,28 @@ export function createChatMessageHandler(args: {
     await hooks.backgroundNotificationHook?.["chat.message"]?.(input, output)
     await hooks.runtimeFallback?.["chat.message"]?.(input, output)
     await hooks.btwIsolation?.["chat.message"]?.(input, output)
-    await hooks.keywordDetector?.["chat.message"]?.(input, output)
-    await hooks.thinkMode?.["chat.message"]?.(input, output)
-    await hooks.claudeCodeHooks?.["chat.message"]?.(input, output)
-    await hooks.autoSlashCommand?.["chat.message"]?.(input, output)
-    await hooks.noSisyphusGpt?.["chat.message"]?.(input, output)
-    await hooks.noHephaestusNonGpt?.["chat.message"]?.(input, output)
-    if (hooks.startWork && isStartWorkHookOutput(output)) {
-      const promptText = extractPromptText(output.parts)
-      if (isStartWorkFallbackTemplate(promptText)) {
-        clearStoppedContinuationBeforeWorkStart(hooks, input.sessionID, "start-work")
+
+    // #given: btw-isolation has rewritten the parent user message with the
+    // fully-formed side answer and requested noReply
+    // #when: subsequent chat.message hooks try to inject prefixes (mode preambles,
+    // think-mode markers, slash command templates) into the now-final text
+    // #then: those injections leak into the side-answer transcript; skip every
+    // mutation/inject hook to keep the rewritten message pristine
+    const btwHandled = (output as { noReply?: boolean }).noReply === true
+    if (!btwHandled) {
+      await hooks.keywordDetector?.["chat.message"]?.(input, output)
+      await hooks.thinkMode?.["chat.message"]?.(input, output)
+      await hooks.claudeCodeHooks?.["chat.message"]?.(input, output)
+      await hooks.autoSlashCommand?.["chat.message"]?.(input, output)
+      await hooks.noSisyphusGpt?.["chat.message"]?.(input, output)
+      await hooks.noHephaestusNonGpt?.["chat.message"]?.(input, output)
+      if (hooks.startWork && isStartWorkHookOutput(output)) {
+        const promptText = extractPromptText(output.parts)
+        if (isStartWorkFallbackTemplate(promptText)) {
+          clearStoppedContinuationBeforeWorkStart(hooks, input.sessionID, "start-work")
+        }
+        await hooks.startWork["chat.message"]?.(input, output)
       }
-      await hooks.startWork["chat.message"]?.(input, output)
     }
 
     if (!isModelCacheAvailable()) {
