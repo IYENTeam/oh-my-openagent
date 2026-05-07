@@ -544,7 +544,8 @@ describe("createChatMessageHandler - btw-isolation noReply fence", () => {
         _input: { sessionID: string },
         output: ChatMessageHandlerOutput & { noReply?: boolean },
       ) => {
-        output.parts[0]!.text = "Side question (not added to main task):\n조사해줘\n\nSide answer:\n42"
+        output.parts[0]!.text =
+          "Side question (not added to main task):\nplease investigate this bug\n\nSide answer:\n42"
         output.noReply = true
       },
     } as any
@@ -557,7 +558,7 @@ describe("createChatMessageHandler - btw-isolation noReply fence", () => {
     const input = createMockInput()
     const output: ChatMessageHandlerOutput & { noReply?: boolean } = {
       message: {},
-      parts: [{ type: "text", text: "/btw 조사해줘" }],
+      parts: [{ type: "text", text: "/btw please investigate this bug" }],
     }
 
     //#when - the full chat-message pipeline runs
@@ -566,7 +567,7 @@ describe("createChatMessageHandler - btw-isolation noReply fence", () => {
     //#then - keyword-detector preamble is NOT prepended; auto-slash-command does NOT re-detect /btw
     expect(output.noReply).toBe(true)
     expect(output.parts[0]?.text).toBe(
-      "Side question (not added to main task):\n조사해줘\n\nSide answer:\n42",
+      "Side question (not added to main task):\nplease investigate this bug\n\nSide answer:\n42",
     )
     expect(output.parts[0]?.text).not.toContain("[search-mode]")
     expect(output.parts[0]?.text).not.toContain("[analyze-mode]")
@@ -582,7 +583,7 @@ describe("createChatMessageHandler - btw-isolation noReply fence", () => {
     const input = createMockInput()
     const output: ChatMessageHandlerOutput = {
       message: {},
-      parts: [{ type: "text", text: "이 코드 조사해줘" }],
+      parts: [{ type: "text", text: "please investigate this code" }],
     }
 
     //#when
