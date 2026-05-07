@@ -534,6 +534,65 @@ describe("createChatMessageHandler - plain ultrawork keyword routing", () => {
   })
 })
 
+describe("createChatMessageHandler - btw-isolation noReply fence", () => {
+  test("skips downstream injecting hooks once btw-isolation marks noReply", async () => {
+    //#given - btw-isolation has already rewritten the message and set noReply
+    setMainSession("test-session")
+    const args = createMockHandlerArgs()
+    args.hooks.btwIsolation = {
+      "chat.message": async (
+        _input: { sessionID: string },
+        output: ChatMessageHandlerOutput & { noReply?: boolean },
+      ) => {
+        output.parts[0]!.text = "Side question (not added to main task):\n조사해줘\n\nSide answer:\n42"
+        output.noReply = true
+      },
+    } as any
+    args.hooks.keywordDetector = createKeywordDetectorHook(args.ctx as never, undefined, undefined)
+    args.hooks.autoSlashCommand = createAutoSlashCommandHook(
+      args.ctx as never,
+      { defaultDirectory: "/tmp", cliArguments: { force: false } } as never,
+    ) as any
+    const handler = createChatMessageHandler(args)
+    const input = createMockInput()
+    const output: ChatMessageHandlerOutput & { noReply?: boolean } = {
+      message: {},
+      parts: [{ type: "text", text: "/btw 조사해줘" }],
+    }
+
+    //#when - the full chat-message pipeline runs
+    await handler(input, output)
+
+    //#then - keyword-detector preamble is NOT prepended; auto-slash-command does NOT re-detect /btw
+    expect(output.noReply).toBe(true)
+    expect(output.parts[0]?.text).toBe(
+      "Side question (not added to main task):\n조사해줘\n\nSide answer:\n42",
+    )
+    expect(output.parts[0]?.text).not.toContain("[search-mode]")
+    expect(output.parts[0]?.text).not.toContain("[analyze-mode]")
+    expect(output.parts[0]?.text).not.toContain("ANALYSIS MODE")
+  })
+
+  test("runs downstream hooks normally when btw-isolation did NOT set noReply", async () => {
+    //#given - btw-isolation absent (regular message); keyword-detector should fire as before
+    setMainSession("test-session")
+    const args = createMockHandlerArgs()
+    args.hooks.keywordDetector = createKeywordDetectorHook(args.ctx as never, undefined, undefined)
+    const handler = createChatMessageHandler(args)
+    const input = createMockInput()
+    const output: ChatMessageHandlerOutput = {
+      message: {},
+      parts: [{ type: "text", text: "이 코드 조사해줘" }],
+    }
+
+    //#when
+    await handler(input, output)
+
+    //#then - keyword-detector still prepends analyze-mode preamble for non-noReply messages
+    expect(output.parts[0]?.text ?? "").toContain("[analyze-mode]")
+  })
+})
+
 function createMockInput(agent?: string, model?: { providerID: string; modelID: string }) {
   return {
     sessionID: "test-session",
